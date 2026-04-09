@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CloudChat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+
+    <main class="app-shell">
+      <aside class="sidebar">
+        <div class="brand-card">
+          <div>
+            <p class="eyebrow">CloudChat</p>
+            <h1>Team chat that stays in one place.</h1>
+          </div>
+          <p class="brand-copy">
+            Create rooms, message in real time, and keep the full conversation thread in view.
+          </p>
+        </div>
+
+        <section class="panel user-panel">
+          <div class="panel-header">
+            <h2>Your identity</h2>
+            <span class="status-dot"></span>
+          </div>
+          <label class="field">
+            <span>Display name</span>
+            <input id="userNameInput" type="text" maxlength="32" placeholder="Enter your name" />
+          </label>
+          <p class="helper-text">Used as the sender name for new messages.</p>
+        </section>
+
+        <section class="panel groups-panel">
+          <div class="panel-header">
+            <h2>Groups</h2>
+            <span id="groupCount" class="count-badge">0</span>
+          </div>
+          <div id="groupList" class="group-list" aria-label="Chat groups"></div>
+
+          <form id="groupForm" class="stack-form">
+            <label class="field">
+              <span>Group name</span>
+              <input id="groupNameInput" type="text" maxlength="40" placeholder="Design Sync" />
+            </label>
+            <label class="field">
+              <span>Description</span>
+              <input id="groupDescriptionInput" type="text" maxlength="80" placeholder="Discussion for the product team" />
+            </label>
+            <button class="primary-button" type="submit">Create group</button>
+          </form>
+        </section>
+      </aside>
+
+      <section class="workspace">
+        <header class="workspace-header panel">
+          <div>
+            <p class="eyebrow">Live room</p>
+            <h2 id="activeGroupTitle">No group selected</h2>
+            <p id="activeGroupMeta" class="meta-text">Create or select a group to begin.</p>
+          </div>
+          <div class="header-actions">
+            <button id="deleteGroupButton" class="ghost-button" type="button" disabled>Delete group</button>
+          </div>
+        </header>
+
+        <section class="panel messages-panel">
+          <div id="messagesEmptyState" class="empty-state">
+            <h3>No messages yet</h3>
+            <p>Pick a group, then send the first message to start the conversation.</p>
+          </div>
+          <div id="messageList" class="message-list" aria-live="polite"></div>
+        </section>
+
+        <form id="messageForm" class="composer panel">
+          <label class="field grow">
+            <span>Message</span>
+            <textarea id="messageInput" rows="3" maxlength="500" placeholder="Write a message..."></textarea>
+          </label>
+          <button class="primary-button send-button" type="submit">Send message</button>
+        </form>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
