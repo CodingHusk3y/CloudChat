@@ -1,9 +1,11 @@
 const express = require('express');
-
-const { getRoomMessages } = require('../controllers/messageController');
-
 const router = express.Router();
+const {
+  createMessage,
+  getMessagesByRoom,
+} = require('../controllers/messageController');
 
-router.get('/:roomId', getRoomMessages);
+router.post('/', createMessage);
+router.get('/:roomId', getMessagesByRoom);
 
 module.exports = router;
