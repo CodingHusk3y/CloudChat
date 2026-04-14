@@ -79,6 +79,7 @@
             <p>Pick a group, then send the first message to start the conversation.</p>
           </div>
           <div id="messageList" class="message-list" aria-live="polite"></div>
+          <p id="typingIndicator" class="typing-indicator" hidden></p>
         </section>
 
         <form id="messageForm" class="composer panel">
@@ -91,6 +92,11 @@
       </section>
     </main>
 
+    <script src="/socket.io/socket.io.js" onerror="
+      var s=document.createElement('script');
+      s.src='http://localhost:3000/socket.io/socket.io.js';
+      document.head.appendChild(s);
+    "></script>
     <script src="app.js"></script>
   </body>
 </html>

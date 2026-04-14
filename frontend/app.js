@@ -1,4 +1,8 @@
+const SERVER_URL = window.location.protocol === 'file:' ? 'http://localhost:3000' : window.location.origin;
+const API_BASE = SERVER_URL + '/api';
 const STORAGE_KEY = 'cloudchat.ui-state';
+
+const socket = io(SERVER_URL);
 
 const elements = {
   userNameInput: document.getElementById('userNameInput'),
@@ -13,81 +17,37 @@ const elements = {
   messageForm: document.getElementById('messageForm'),
   messageInput: document.getElementById('messageInput'),
   messageList: document.getElementById('messageList'),
-  messagesEmptyState: document.getElementById('messagesEmptyState')
-};
-
-const demoData = {
-  userName: 'Avery',
-  activeGroupId: 'product-team',
-  groups: [
-    {
-      id: 'product-team',
-      name: 'Product Team',
-      description: 'Release planning, bugs, and launch updates.',
-      createdAt: '2026-04-01T09:00:00.000Z',
-      messages: [
-        {
-          id: 'm1',
-          sender: 'Jordan',
-          content: 'Shipped the first draft of the onboarding flow.',
-          createdAt: '2026-04-09T08:20:00.000Z'
-        },
-        {
-          id: 'm2',
-          sender: 'Avery',
-          content: 'Great. Let us review the edge cases before release.',
-          createdAt: '2026-04-09T08:24:00.000Z'
-        }
-      ]
-    },
-    {
-      id: 'design-sync',
-      name: 'Design Sync',
-      description: 'UI feedback, visual direction, and component reviews.',
-      createdAt: '2026-04-04T10:30:00.000Z',
-      messages: [
-        {
-          id: 'm3',
-          sender: 'Mina',
-          content: 'The new message cards need a stronger visual hierarchy.',
-          createdAt: '2026-04-09T07:18:00.000Z'
-        }
-      ]
-    }
-  ]
+  messagesEmptyState: document.getElementById('messagesEmptyState'),
+  typingIndicator: document.getElementById('typingIndicator')
 };
 
 const state = loadState();
 
 function loadState() {
-  const savedState = localStorage.getItem(STORAGE_KEY);
-
-  if (!savedState) {
-    return structuredClone(demoData);
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      return {
+        userName: parsed.userName || 'Anonymous',
+        activeGroupId: parsed.activeGroupId || null,
+        groups: [],
+        messages: []
+      };
+    } catch { /* fall through */ }
   }
-
-  try {
-    const parsedState = JSON.parse(savedState);
-    return {
-      userName: parsedState.userName || demoData.userName,
-      activeGroupId: parsedState.activeGroupId || demoData.activeGroupId,
-      groups: Array.isArray(parsedState.groups) && parsedState.groups.length ? parsedState.groups : structuredClone(demoData.groups)
-    };
-  } catch {
-    return structuredClone(demoData);
-  }
+  return { userName: 'Anonymous', activeGroupId: null, groups: [], messages: [] };
 }
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
-function generateId(prefix) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    userName: state.userName,
+    activeGroupId: state.activeGroupId
+  }));
 }
 
 function getActiveGroup() {
-  return state.groups.find((group) => group.id === state.activeGroupId) || null;
+  return state.groups.find((g) => g._id === state.activeGroupId) || null;
 }
 
 function formatTimeStamp(value) {
@@ -108,10 +68,70 @@ function getInitials(name) {
     .join('');
 }
 
-function persistAndRender() {
-  saveState();
-  render();
+// --- API helpers ---
+
+async function api(path, options) {
+  const res = await fetch(API_BASE + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || res.statusText);
+  }
+  return res.json();
 }
+
+async function fetchRooms() {
+  state.groups = await api('/rooms');
+  renderGroups();
+  if (state.activeGroupId) {
+    const still = state.groups.find((g) => g._id === state.activeGroupId);
+    if (!still && state.groups.length) {
+      state.activeGroupId = state.groups[0]._id;
+    } else if (!still) {
+      state.activeGroupId = null;
+    }
+  }
+  if (!state.activeGroupId && state.groups.length) {
+    state.activeGroupId = state.groups[0]._id;
+  }
+  renderGroups();
+  await switchRoom(state.activeGroupId);
+}
+
+async function fetchMessages(roomId) {
+  if (!roomId) {
+    state.messages = [];
+    return;
+  }
+  state.messages = await api('/messages/' + roomId);
+}
+
+// --- Socket room management ---
+
+let currentSocketRoom = null;
+
+function joinSocketRoom(roomId) {
+  if (currentSocketRoom === roomId) return;
+  if (currentSocketRoom) {
+    socket.emit('leaveRoom', { roomId: currentSocketRoom, username: state.userName });
+  }
+  if (roomId) {
+    socket.emit('joinRoom', { roomId, username: state.userName });
+  }
+  currentSocketRoom = roomId;
+}
+
+async function switchRoom(roomId) {
+  state.activeGroupId = roomId;
+  saveState();
+  joinSocketRoom(roomId);
+  await fetchMessages(roomId);
+  renderMessages();
+}
+
+// --- Rendering ---
 
 function renderGroups() {
   elements.groupCount.textContent = String(state.groups.length);
@@ -126,8 +146,9 @@ function renderGroups() {
   }
 
   for (const group of state.groups) {
-    const messageCount = group.messages.length;
-    const isActive = group.id === state.activeGroupId;
+    const isActive = group._id === state.activeGroupId;
+    const lastMsg = group.lastMessage ? group.lastMessage.content : '';
+    const preview = lastMsg ? lastMsg.slice(0, 40) + (lastMsg.length > 40 ? '...' : '') : 'No messages yet';
     const groupCard = document.createElement('div');
     groupCard.className = `group-card${isActive ? ' active' : ''}`;
     groupCard.tabIndex = 0;
@@ -137,9 +158,9 @@ function renderGroups() {
       <div class="group-card-top">
         <div>
           <h3>${group.name}</h3>
-          <p class="group-description">${group.description || 'No description added yet.'}</p>
+          <p class="group-description">${group.description || preview}</p>
         </div>
-        <span class="group-count">${messageCount} msg${messageCount === 1 ? '' : 's'}</span>
+        <span class="group-count">${group.members ? group.members.length : 0} member${group.members && group.members.length === 1 ? '' : 's'}</span>
       </div>
       <div class="group-actions">
         <button class="ghost-button" type="button">Open room</button>
@@ -147,31 +168,30 @@ function renderGroups() {
       </div>
     `;
 
+    const openHandler = (event) => {
+      event.stopPropagation();
+      switchRoom(group._id);
+      renderGroups();
+    };
+
     groupCard.addEventListener('click', () => {
-      state.activeGroupId = group.id;
-      persistAndRender();
+      switchRoom(group._id);
+      renderGroups();
     });
 
     groupCard.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
-        state.activeGroupId = group.id;
-        persistAndRender();
+        switchRoom(group._id);
+        renderGroups();
       }
     });
 
-    const openButton = groupCard.querySelector('.ghost-button');
-    const deleteButton = groupCard.querySelector('.icon-button');
+    groupCard.querySelector('.ghost-button').addEventListener('click', openHandler);
 
-    openButton.addEventListener('click', (event) => {
+    groupCard.querySelector('.icon-button').addEventListener('click', (event) => {
       event.stopPropagation();
-      state.activeGroupId = group.id;
-      persistAndRender();
-    });
-
-    deleteButton.addEventListener('click', (event) => {
-      event.stopPropagation();
-      deleteGroup(group.id);
+      deleteGroup(group._id);
     });
 
     elements.groupList.appendChild(groupCard);
@@ -180,7 +200,7 @@ function renderGroups() {
 
 function renderMessages() {
   const activeGroup = getActiveGroup();
-  const hasMessages = Boolean(activeGroup && activeGroup.messages.length);
+  const hasMessages = Boolean(state.messages.length);
 
   elements.messagesEmptyState.style.display = hasMessages ? 'none' : 'grid';
   elements.messageList.innerHTML = '';
@@ -193,16 +213,12 @@ function renderMessages() {
   }
 
   elements.activeGroupTitle.textContent = activeGroup.name;
-  elements.activeGroupMeta.textContent = `${activeGroup.messages.length} message${activeGroup.messages.length === 1 ? '' : 's'} in this room`;
+  elements.activeGroupMeta.textContent = `${state.messages.length} message${state.messages.length === 1 ? '' : 's'} in this room`;
   elements.deleteGroupButton.disabled = false;
 
-  if (!activeGroup.messages.length) {
-    return;
-  }
-
-  for (const message of activeGroup.messages) {
-    const messageCard = document.createElement('article');
+  for (const message of state.messages) {
     const isMine = message.sender.toLowerCase() === state.userName.toLowerCase();
+    const messageCard = document.createElement('article');
     messageCard.className = `message-card${isMine ? ' mine' : ''}`;
     messageCard.innerHTML = `
       <div class="message-top">
@@ -219,105 +235,140 @@ function renderMessages() {
       </div>
     `;
 
-    const deleteButton = messageCard.querySelector('.icon-button');
-    deleteButton.addEventListener('click', () => {
-      deleteMessage(activeGroup.id, message.id);
+    messageCard.querySelector('.icon-button').addEventListener('click', () => {
+      deleteMessage(message._id);
     });
 
     elements.messageList.appendChild(messageCard);
   }
-}
-
-function render() {
-  elements.userNameInput.value = state.userName;
-  renderGroups();
-  renderMessages();
-}
-
-function createGroup(name, description) {
-  const normalizedName = name.trim();
-
-  if (!normalizedName) {
-    return;
-  }
-
-  const duplicateExists = state.groups.some((group) => group.name.toLowerCase() === normalizedName.toLowerCase());
-  if (duplicateExists) {
-    window.alert('That group name already exists.');
-    return;
-  }
-
-  const newGroup = {
-    id: generateId('group'),
-    name: normalizedName,
-    description: description.trim(),
-    createdAt: new Date().toISOString(),
-    messages: []
-  };
-
-  state.groups.unshift(newGroup);
-  state.activeGroupId = newGroup.id;
-  elements.groupForm.reset();
-  persistAndRender();
-}
-
-function deleteGroup(groupId) {
-  const group = state.groups.find((entry) => entry.id === groupId);
-  if (!group) {
-    return;
-  }
-
-  const confirmed = window.confirm(`Delete the group "${group.name}" and all of its messages?`);
-  if (!confirmed) {
-    return;
-  }
-
-  state.groups = state.groups.filter((entry) => entry.id !== groupId);
-
-  if (state.activeGroupId === groupId) {
-    state.activeGroupId = state.groups[0]?.id || null;
-  }
-
-  persistAndRender();
-}
-
-function sendMessage(text) {
-  const activeGroup = getActiveGroup();
-
-  if (!activeGroup) {
-    window.alert('Create or select a group first.');
-    return;
-  }
-
-  const trimmedText = text.trim();
-  if (!trimmedText) {
-    return;
-  }
-
-  activeGroup.messages.push({
-    id: generateId('message'),
-    sender: state.userName.trim() || 'Anonymous',
-    content: trimmedText,
-    createdAt: new Date().toISOString()
-  });
-
-  elements.messageForm.reset();
-  persistAndRender();
 
   requestAnimationFrame(() => {
     elements.messageList.scrollTop = elements.messageList.scrollHeight;
   });
 }
 
-function deleteMessage(groupId, messageId) {
-  const group = state.groups.find((entry) => entry.id === groupId);
-  if (!group) {
+// --- Actions ---
+
+async function createGroup(name, description) {
+  const trimmedName = name.trim();
+  if (!trimmedName) return;
+
+  const duplicate = state.groups.some((g) => g.name.toLowerCase() === trimmedName.toLowerCase());
+  if (duplicate) {
+    window.alert('That group name already exists.');
     return;
   }
 
-  group.messages = group.messages.filter((message) => message.id !== messageId);
-  persistAndRender();
+  const room = await api('/rooms', {
+    method: 'POST',
+    body: JSON.stringify({ name: trimmedName, description: description.trim(), members: [state.userName] })
+  });
+
+  state.groups.unshift(room);
+  elements.groupForm.reset();
+  await switchRoom(room._id);
+  renderGroups();
 }
+
+async function deleteGroup(groupId) {
+  const group = state.groups.find((g) => g._id === groupId);
+  if (!group) return;
+
+  const confirmed = window.confirm(`Delete the group "${group.name}" and all of its messages?`);
+  if (!confirmed) return;
+
+  state.groups = state.groups.filter((g) => g._id !== groupId);
+
+  if (state.activeGroupId === groupId) {
+    const next = state.groups[0]?._id || null;
+    await switchRoom(next);
+  }
+
+  renderGroups();
+}
+
+function sendMessage(text) {
+  const activeGroup = getActiveGroup();
+  if (!activeGroup) {
+    window.alert('Create or select a group first.');
+    return;
+  }
+
+  const trimmed = text.trim();
+  if (!trimmed) return;
+
+  socket.emit('sendMessage', {
+    roomId: activeGroup._id,
+    sender: state.userName.trim() || 'Anonymous',
+    content: trimmed
+  });
+
+  elements.messageForm.reset();
+}
+
+function deleteMessage(messageId) {
+  state.messages = state.messages.filter((m) => m._id !== messageId);
+  renderMessages();
+}
+
+// --- Typing indicator ---
+
+let typingTimeout = null;
+
+function emitTyping() {
+  if (!state.activeGroupId) return;
+  socket.emit('typing', { roomId: state.activeGroupId, username: state.userName });
+  clearTimeout(typingTimeout);
+  typingTimeout = setTimeout(() => {
+    socket.emit('stopTyping', { roomId: state.activeGroupId, username: state.userName });
+  }, 1500);
+}
+
+let typingClearTimer = null;
+
+function showTyping(username) {
+  elements.typingIndicator.textContent = `${username} is typing...`;
+  elements.typingIndicator.hidden = false;
+  clearTimeout(typingClearTimer);
+  typingClearTimer = setTimeout(() => {
+    elements.typingIndicator.hidden = true;
+  }, 2000);
+}
+
+function hideTyping() {
+  elements.typingIndicator.hidden = true;
+}
+
+// --- Socket event listeners ---
+
+socket.on('newMessage', (message) => {
+  if (message.room === state.activeGroupId || message.roomId === state.activeGroupId) {
+    state.messages.push(message);
+    renderMessages();
+  }
+});
+
+socket.on('userJoined', ({ message }) => {
+  console.log(message);
+});
+
+socket.on('userLeft', ({ message }) => {
+  console.log(message);
+});
+
+socket.on('typing', ({ username }) => {
+  showTyping(username);
+});
+
+socket.on('stopTyping', () => {
+  hideTyping();
+});
+
+socket.on('errorMessage', ({ message }) => {
+  console.error('Socket error:', message);
+});
+
+// --- DOM event listeners ---
 
 elements.userNameInput.addEventListener('input', (event) => {
   state.userName = event.target.value.slice(0, 32) || 'Anonymous';
@@ -332,7 +383,7 @@ elements.groupForm.addEventListener('submit', (event) => {
 elements.deleteGroupButton.addEventListener('click', () => {
   const activeGroup = getActiveGroup();
   if (activeGroup) {
-    deleteGroup(activeGroup.id);
+    deleteGroup(activeGroup._id);
   }
 });
 
@@ -341,4 +392,9 @@ elements.messageForm.addEventListener('submit', (event) => {
   sendMessage(elements.messageInput.value);
 });
 
-render();
+elements.messageInput.addEventListener('input', emitTyping);
+
+// --- Init ---
+
+elements.userNameInput.value = state.userName;
+fetchRooms();

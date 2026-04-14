@@ -17,7 +17,7 @@ exports.createMessage = async (req, res) => {
     }
 
     const message = await Message.create({
-      room: roomId,
+      roomId: room._id,
       sender,
       content,
     });
@@ -25,7 +25,7 @@ exports.createMessage = async (req, res) => {
     room.lastMessage = message._id;
     await room.save();
 
-    const populatedMessage = await Message.findById(message._id).populate('room');
+    const populatedMessage = await Message.findById(message._id).populate('roomId');
 
     res.status(201).json(populatedMessage);
   } catch (error) {
@@ -37,7 +37,7 @@ exports.getMessagesByRoom = async (req, res) => {
   try {
     const { roomId } = req.params;
 
-    const messages = await Message.find({ room: roomId })
+    const messages = await Message.find({ roomId })
       .sort({ createdAt: 1 });
 
     res.status(200).json(messages);

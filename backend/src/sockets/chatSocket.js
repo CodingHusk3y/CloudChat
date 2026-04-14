@@ -59,7 +59,7 @@ const chatSocket = (io) => {
         }
 
         const message = await Message.create({
-          room: roomId,
+          roomId: room._id,
           sender,
           content,
         });

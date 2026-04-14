@@ -1,3 +1,4 @@
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 
@@ -15,5 +16,7 @@ app.get('/health', (req, res) => {
 
 app.use('/api/rooms', roomRoutes);
 app.use('/api/messages', messageRoutes);
+
+app.use(express.static(path.join(__dirname, '../../frontend')));
 
 module.exports = app;
