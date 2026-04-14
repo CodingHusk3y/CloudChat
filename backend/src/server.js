@@ -94,6 +94,7 @@ app.use("/api/groups/:groupId/messages", messageRoutes);
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "OK",
+    database: isDbConnected ? "connected" : "connecting",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV,
@@ -104,6 +105,8 @@ app.use(notFound);
 app.use(errorHandler);  
 
 const PORT = process.env.PORT || 5000;
+const DB_RETRY_MS = Number(process.env.DB_RETRY_MS || 10000);
+let isDbConnected = false;
 
 process.on("unhandledRejection", (reason) => {
   console.error("❌ Unhandled promise rejection:", reason);
@@ -116,7 +119,6 @@ process.on("uncaughtException", (error) => {
 });
 
 const startServer = async () => {
-  await connectDB(); 
   httpServer.on("error", (error) => {
     console.error(`❌ Server failed to listen on port ${PORT}:`, error.message);
     process.exit(1);
@@ -129,8 +131,22 @@ const startServer = async () => {
 🔌 WebSocket: ws://localhost:${PORT}
 📋 Health:    http://localhost:${PORT}/health
     `);
+
+    console.log(`🔧 Startup checks: PORT=${PORT}, MONGO_URI=${process.env.MONGO_URI ? "set" : "missing"}`);
+    connectDatabaseWithRetry();
   });
 };
+
+async function connectDatabaseWithRetry() {
+  try {
+    await connectDB();
+    isDbConnected = true;
+  } catch (error) {
+    isDbConnected = false;
+    console.error(`⚠️  Retrying MongoDB connection in ${DB_RETRY_MS / 1000}s...`);
+    setTimeout(connectDatabaseWithRetry, DB_RETRY_MS);
+  }
+}
 
 startServer();
 
