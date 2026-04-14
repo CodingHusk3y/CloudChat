@@ -2,6 +2,8 @@ require("dotenv").config({ path: require("path").resolve(__dirname, "../../.env"
 const express = require("express");
 const http = require("http");        
 const { Server } = require("socket.io");
+const { createClient } = require("redis");
+const { createAdapter } = require("@socket.io/redis-adapter");
 const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
@@ -9,6 +11,7 @@ const rateLimit = require("express-rate-limit");
 const path = require("path");
 
 const connectDB = require("./config/db");
+const { initRedis } = require("./config/redis");
 const { errorHandler, notFound } = require("./middleware/errorHandler");
 const { socketHandler, setIO } = require("./sockets/chatSocket");
 
@@ -20,10 +23,15 @@ const roomRoutes    = require("./routes/rooms");
 const app = express();
 const httpServer = http.createServer(app);
 
+const allowedOrigins = (process.env.CLIENT_URL || "http://localhost:3000")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -48,7 +56,7 @@ app.use(helmet({
 }));
 
 app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:3000",
+  origin: allowedOrigins,
   credentials: true, 
 }));
 
@@ -161,6 +169,31 @@ async function connectDatabaseWithRetry() {
   }
 }
 
+async function enableSocketRedisAdapter() {
+  const redisUrl = process.env.REDIS_URL;
+  if (!redisUrl) {
+    console.log("ℹ️ Socket.IO Redis adapter disabled (REDIS_URL not set)");
+    return;
+  }
+
+  try {
+    const pubClient = createClient({ url: redisUrl });
+    const subClient = pubClient.duplicate();
+
+    pubClient.on("error", (err) => console.error("❌ Socket.IO Redis pubClient error:", err.message));
+    subClient.on("error", (err) => console.error("❌ Socket.IO Redis subClient error:", err.message));
+
+    await Promise.all([pubClient.connect(), subClient.connect()]);
+    io.adapter(createAdapter(pubClient, subClient));
+    console.log("✅ Socket.IO Redis adapter enabled");
+  } catch (error) {
+    console.error(`⚠️ Socket.IO Redis adapter setup failed: ${error.message}`);
+  }
+}
+
 startServer();
+
+initRedis();
+enableSocketRedisAdapter();
 
 module.exports = { app, httpServer };

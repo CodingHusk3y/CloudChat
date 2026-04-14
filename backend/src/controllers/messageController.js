@@ -3,11 +3,29 @@ const Group = require("../models/Group");
 const { asyncHandler } = require("../middleware/errorHandler");
 const path = require("path");
 const fs = require("fs");
+const {
+  redisGetJson,
+  redisSetJsonEx,
+  redisDeleteByPattern,
+} = require("../config/redis");
+
+const MESSAGE_CACHE_TTL_SEC = Number(process.env.MESSAGE_CACHE_TTL_SEC || 30);
+
+const recentMessagesCacheKey = (groupId, limit) => `messages:group:${groupId}:recent:${limit}`;
+const recentMessagesCachePattern = (groupId) => `messages:group:${groupId}:recent:*`;
 
 const getMessages = asyncHandler(async (req, res) => {
   const { groupId } = req.params;
   const limit = Math.min(parseInt(req.query.limit) || 50, 100);
   const before = req.query.before; 
+
+  if (!before) {
+    const cacheKey = recentMessagesCacheKey(groupId, limit);
+    const cached = await redisGetJson(cacheKey);
+    if (cached) {
+      return res.status(200).json(cached);
+    }
+  }
 
   const filter = { group: groupId };
   if (before) {
@@ -24,12 +42,19 @@ const getMessages = asyncHandler(async (req, res) => {
 
   const nextCursor = messages.length === limit ? messages[0]?._id : null;
 
-  res.status(200).json({
+  const payload = {
     success: true,
     count: messages.length,
     nextCursor,          
     messages,
-  });
+  };
+
+  if (!before) {
+    const cacheKey = recentMessagesCacheKey(groupId, limit);
+    await redisSetJsonEx(cacheKey, MESSAGE_CACHE_TTL_SEC, payload);
+  }
+
+  res.status(200).json(payload);
 });
 
 const createMessage = asyncHandler(async (req, res) => {
@@ -73,6 +98,7 @@ const createMessage = asyncHandler(async (req, res) => {
     message = await message.populate("replyTo", "content sender");
   }
 
+  await redisDeleteByPattern(recentMessagesCachePattern(groupId));
   await Group.findByIdAndUpdate(groupId, { updatedAt: new Date() });
 
   res.status(201).json({ success: true, message });
@@ -100,6 +126,7 @@ const updateMessage = asyncHandler(async (req, res) => {
   message.isEdited = true;
   message.editedAt = new Date();
   await message.save();
+  await redisDeleteByPattern(recentMessagesCachePattern(message.group.toString()));
 
   await message.populate("sender", "username avatar");
 
@@ -131,6 +158,7 @@ const deleteMessage = asyncHandler(async (req, res) => {
   message.content = "";      // clear content for privacy
   message.attachments = [];  // remove attachment references
   await message.save();
+  await redisDeleteByPattern(recentMessagesCachePattern(req.params.groupId));
 
   res.status(200).json({ success: true, message: "Message deleted." });
 });
@@ -161,6 +189,7 @@ const reactToMessage = asyncHandler(async (req, res) => {
   }
 
   await message.save();
+  await redisDeleteByPattern(recentMessagesCachePattern(message.group.toString()));
 
   res.status(200).json({ success: true, reactions: Object.fromEntries(message.reactions) });
 });
