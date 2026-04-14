@@ -15,6 +15,7 @@ const { socketHandler, setIO } = require("./sockets/chatSocket");
 const authRoutes    = require("./routes/authRoutes");
 const groupRoutes   = require("./routes/groupRoutes");
 const messageRoutes = require("./routes/messageRoutes");
+const roomRoutes    = require("./routes/rooms");
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -72,6 +73,7 @@ app.use(
 
 app.use("/api/auth",   authRoutes);
 app.use("/api/groups", groupRoutes);
+app.use("/api/rooms",  roomRoutes);
 
 app.use("/api/groups/:groupId/messages", messageRoutes);
 
