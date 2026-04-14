@@ -190,6 +190,30 @@ function getInitials(name) {
     .join('');
 }
 
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function getMessageContentHtml(messageText) {
+  const safeText = escapeHtml(messageText);
+
+  if (!messageSearch.active || !messageSearch.query.trim()) {
+    return safeText;
+  }
+
+  const pattern = new RegExp(`(${escapeRegExp(messageSearch.query.trim())})`, 'ig');
+  return safeText.replace(pattern, '<mark class="match-highlight">$1</mark>');
+}
+
 // --- API helpers ---
 
 async function api(path, options) {
@@ -518,6 +542,7 @@ function renderMessages(options = {}) {
   for (const message of displayedMessages) {
     const senderName = getSenderName(message);
     const isMine = senderName.toLowerCase() === state.userName.toLowerCase();
+    const contentHtml = getMessageContentHtml(message.content || '');
     const messageCard = document.createElement('article');
     messageCard.className = `message-card${isMine ? ' mine' : ''}`;
     messageCard.innerHTML = `
@@ -528,7 +553,7 @@ function renderMessages(options = {}) {
         </div>
         <span class="message-meta">${formatTimeStamp(message.createdAt)}</span>
       </div>
-      <p class="message-content">${message.content}</p>
+      <p class="message-content">${contentHtml}</p>
       <div class="message-footer">
         <span class="message-meta">${isMine ? 'Sent by you' : 'Room message'}</span>
         <button class="icon-button" type="button">Delete message</button>
