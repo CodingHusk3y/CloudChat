@@ -108,6 +108,15 @@ const PORT = process.env.PORT || 5000;
 const DB_RETRY_MS = Number(process.env.DB_RETRY_MS || 10000);
 let isDbConnected = false;
 
+function validateRequiredEnv() {
+  const missing = [];
+  if (!process.env.JWT_SECRET) missing.push("JWT_SECRET");
+  if (missing.length) {
+    console.error(`❌ Missing required environment variable(s): ${missing.join(", ")}`);
+    process.exit(1);
+  }
+}
+
 process.on("unhandledRejection", (reason) => {
   console.error("❌ Unhandled promise rejection:", reason);
   process.exit(1);
@@ -119,6 +128,8 @@ process.on("uncaughtException", (error) => {
 });
 
 const startServer = async () => {
+  validateRequiredEnv();
+
   httpServer.on("error", (error) => {
     console.error(`❌ Server failed to listen on port ${PORT}:`, error.message);
     process.exit(1);
@@ -132,7 +143,9 @@ const startServer = async () => {
 📋 Health:    http://localhost:${PORT}/health
     `);
 
-    console.log(`🔧 Startup checks: PORT=${PORT}, MONGO_URI=${process.env.MONGO_URI ? "set" : "missing"}`);
+    console.log(
+      `🔧 Startup checks: PORT=${PORT}, MONGO_URI=${process.env.MONGO_URI ? "set" : "missing"}, JWT_SECRET=${process.env.JWT_SECRET ? "set" : "missing"}`
+    );
     connectDatabaseWithRetry();
   });
 };

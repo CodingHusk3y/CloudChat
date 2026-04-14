@@ -139,7 +139,7 @@ function analyzePassword(password) {
     // Check for special characters
     if (/[^a-zA-Z0-9]/.test(password)) strength++;
 
-    return Math.min(strength, 3), strength;
+    return [Math.min(strength, 3), strength];
 }
 
 function updatePasswordStrength(password) {
