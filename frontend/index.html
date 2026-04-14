@@ -84,6 +84,15 @@
         </header>
 
         <section class="panel messages-panel">
+          <form id="messageSearchForm" class="message-search" role="search">
+            <label class="field grow">
+              <span>Find message</span>
+              <input id="messageSearchInput" type="search" maxlength="80" placeholder="Search in this group..." />
+            </label>
+            <button class="ghost-button" type="submit">Find</button>
+            <button id="clearMessageSearchBtn" class="icon-button" type="button" hidden>Clear</button>
+          </form>
+          <p id="messageSearchStatus" class="search-status" hidden></p>
           <div id="messagesEmptyState" class="empty-state">
             <h3>No messages yet</h3>
             <p>Pick a group, then send the first message to start the conversation.</p>

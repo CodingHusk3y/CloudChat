@@ -74,6 +74,10 @@ const elements = {
   deleteGroupButton: document.getElementById('deleteGroupButton'),
   messageForm: document.getElementById('messageForm'),
   messageInput: document.getElementById('messageInput'),
+  messageSearchForm: document.getElementById('messageSearchForm'),
+  messageSearchInput: document.getElementById('messageSearchInput'),
+  clearMessageSearchBtn: document.getElementById('clearMessageSearchBtn'),
+  messageSearchStatus: document.getElementById('messageSearchStatus'),
   messageList: document.getElementById('messageList'),
   messagesEmptyState: document.getElementById('messagesEmptyState'),
   typingIndicator: document.getElementById('typingIndicator'),
@@ -133,7 +137,12 @@ const paging = {
   hasMore: true,
   isLoading: false
 };
-let toastTimer = null;
+
+const messageSearch = {
+  active: false,
+  query: '',
+  results: []
+};
 
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
@@ -179,39 +188,6 @@ function getInitials(name) {
     .slice(0, 2)
     .map((part) => part[0].toUpperCase())
     .join('');
-}
-
-function ensureToastRoot() {
-  let root = document.getElementById('toastRoot');
-  if (root) return root;
-
-  root = document.createElement('div');
-  root.id = 'toastRoot';
-  root.className = 'toast-root';
-  root.setAttribute('aria-live', 'polite');
-  root.setAttribute('aria-atomic', 'true');
-  document.body.appendChild(root);
-  return root;
-}
-
-function showSuccessToast(message) {
-  const root = ensureToastRoot();
-  clearTimeout(toastTimer);
-
-  root.innerHTML = '';
-  const toast = document.createElement('div');
-  toast.className = 'toast success';
-  toast.textContent = message;
-  root.appendChild(toast);
-
-  toastTimer = setTimeout(() => {
-    toast.classList.add('fade-out');
-    setTimeout(() => {
-      if (toast.parentNode === root) {
-        root.removeChild(toast);
-      }
-    }, 200);
-  }, 1800);
 }
 
 // --- API helpers ---
@@ -326,6 +302,45 @@ async function fetchMessages(roomId) {
   }
 }
 
+async function findMessagesInActiveGroup(queryText) {
+  const roomId = state.activeGroupId;
+  if (!roomId) {
+    throw new Error('Select a group first.');
+  }
+
+  const query = (queryText || '').trim();
+  if (query.length < 2) {
+    throw new Error('Search query must be at least 2 characters.');
+  }
+
+  const params = new URLSearchParams({ q: query, limit: '30' });
+  const data = await api('/groups/' + roomId + '/messages/search?' + params.toString());
+  const found = Array.isArray(data) ? data : (data.messages || []);
+
+  messageSearch.active = true;
+  messageSearch.query = query;
+  messageSearch.results = found;
+
+  if (elements.clearMessageSearchBtn) {
+    elements.clearMessageSearchBtn.hidden = false;
+  }
+}
+
+function clearMessageSearch() {
+  messageSearch.active = false;
+  messageSearch.query = '';
+  messageSearch.results = [];
+
+  if (elements.messageSearchStatus) {
+    elements.messageSearchStatus.hidden = true;
+    elements.messageSearchStatus.textContent = '';
+  }
+
+  if (elements.clearMessageSearchBtn) {
+    elements.clearMessageSearchBtn.hidden = true;
+  }
+}
+
 // --- Socket room management ---
 
 let currentSocketRoom = null;
@@ -345,6 +360,10 @@ async function switchRoom(roomId) {
   state.activeGroupId = roomId;
   saveState();
   joinSocketRoom(roomId);
+  clearMessageSearch();
+  if (elements.messageSearchInput) {
+    elements.messageSearchInput.value = '';
+  }
   paging.nextCursor = null;
   paging.hasMore = Boolean(roomId);
   await fetchMessages(roomId);
@@ -456,7 +475,19 @@ function getSenderName(message) {
 function renderMessages(options = {}) {
   const { scrollToBottom = true, preserveAnchor = null } = options;
   const activeGroup = getActiveGroup();
-  const hasMessages = Boolean(state.messages.length);
+  const displayedMessages = messageSearch.active ? messageSearch.results : state.messages;
+  const hasMessages = Boolean(displayedMessages.length);
+
+  if (elements.messageSearchStatus) {
+    if (messageSearch.active) {
+      const count = displayedMessages.length;
+      elements.messageSearchStatus.hidden = false;
+      elements.messageSearchStatus.textContent = `Found ${count} message${count === 1 ? '' : 's'} for "${messageSearch.query}"`;
+    } else {
+      elements.messageSearchStatus.hidden = true;
+      elements.messageSearchStatus.textContent = '';
+    }
+  }
 
   elements.messagesEmptyState.style.display = hasMessages ? 'none' : 'grid';
   elements.messageList.innerHTML = '';
@@ -478,13 +509,13 @@ function renderMessages(options = {}) {
     elements.activeGroupTitle.textContent = activeGroup.name;
   }
   if (elements.activeGroupMeta) {
-    elements.activeGroupMeta.textContent = `${state.messages.length} message${state.messages.length === 1 ? '' : 's'} in this room`;
+    elements.activeGroupMeta.textContent = `${displayedMessages.length} message${displayedMessages.length === 1 ? '' : 's'} ${messageSearch.active ? 'in search results' : 'in this room'}`;
   }
   if (elements.deleteGroupButton) {
     elements.deleteGroupButton.disabled = false;
   }
 
-  for (const message of state.messages) {
+  for (const message of displayedMessages) {
     const senderName = getSenderName(message);
     const isMine = senderName.toLowerCase() === state.userName.toLowerCase();
     const messageCard = document.createElement('article');
@@ -639,7 +670,6 @@ async function joinActiveGroup(groupId) {
   renderActiveGroups();
   renderGroups();
   await switchRoom(group._id);
-  showSuccessToast(`Joined ${group.name}`);
 }
 
 async function sendMessage(text) {
@@ -660,6 +690,9 @@ async function sendMessage(text) {
   const created = data && data.message ? data.message : null;
   if (created) {
     state.messages.push(created);
+    if (messageSearch.active && created.content && created.content.toLowerCase().includes(messageSearch.query.toLowerCase())) {
+      messageSearch.results.push(created);
+    }
     renderMessages({ scrollToBottom: true });
   }
 
@@ -723,6 +756,24 @@ elements.messageForm.addEventListener('submit', (event) => {
   sendMessage(elements.messageInput.value).catch((error) => {
     window.alert(error.message || 'Failed to send message.');
   });
+});
+
+elements.messageSearchForm?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    await findMessagesInActiveGroup(elements.messageSearchInput?.value || '');
+    renderMessages({ scrollToBottom: false });
+  } catch (error) {
+    window.alert(error.message || 'Failed to search messages.');
+  }
+});
+
+elements.clearMessageSearchBtn?.addEventListener('click', () => {
+  clearMessageSearch();
+  if (elements.messageSearchInput) {
+    elements.messageSearchInput.value = '';
+  }
+  renderMessages({ scrollToBottom: false });
 });
 
 elements.messageInput.addEventListener('input', emitTyping);
