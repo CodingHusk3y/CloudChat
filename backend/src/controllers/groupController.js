@@ -32,6 +32,18 @@ const getMyGroups = asyncHandler(async (req, res) => {
     res.status(200).json({ success: true, count: groups.length, groups });
 });
 
+const getActiveGroups = asyncHandler(async (req, res) => {
+    const groups = await Group.find({
+        owner: { $ne: req.user._id },
+        "settings.isPrivate": false,
+        members: { $not: { $elemMatch: { user: req.user._id } } },
+    })
+        .populate("owner", "username avatar")
+        .sort({ updatedAt: -1 });
+
+    res.status(200).json({ success: true, count: groups.length, groups });
+});
+
 const getGroup = asyncHandler(async (req, res) => {
     await req.group.populate("owner", "username avatar");
     await req.group.populate("members.user", "username avatar isOnline lastSeen");
@@ -113,6 +125,41 @@ const joinGroup = asyncHandler(async (req, res) => {
     res.status(200).json({ success: true, message: "Joined group successfully!", group });
 });
 
+const joinGroupById = asyncHandler(async (req, res) => {
+    const group = await Group.findById(req.params.groupId);
+
+    if (!group) {
+        return res.status(404).json({ success: false, message: "Group not found." });
+    }
+
+    if (group.settings && group.settings.isPrivate) {
+        return res.status(403).json({
+            success: false,
+            message: "This group is private. Use an invite code to join.",
+        });
+    }
+
+    if (group.isMember(req.user._id)) {
+        return res.status(409).json({ success: false, message: "You are already in this group." });
+    }
+
+    if (group.members.length >= group.settings.maxMembers) {
+        return res.status(400).json({ success: false, message: "This group is full." });
+    }
+
+    group.members.push({ user: req.user._id, role: "member" });
+    await group.save();
+
+    await User.findByIdAndUpdate(req.user._id, {
+        $addToSet: { groups: group._id },
+    });
+
+    await group.populate("owner", "username avatar");
+    await group.populate("members.user", "username avatar isOnline");
+
+    res.status(200).json({ success: true, message: "Joined group successfully!", group });
+});
+
 const leaveGroup = asyncHandler(async (req, res) => {
     const group = req.group;
 
@@ -171,10 +218,12 @@ const refreshInviteCode = asyncHandler(async (req, res) => {
 module.exports = {
     createGroup,
     getMyGroups,
+    getActiveGroups,
     getGroup,
     updateGroup,
     deleteGroup,
     joinGroup,
+    joinGroupById,
     leaveGroup,
     removeMember,
     refreshInviteCode,

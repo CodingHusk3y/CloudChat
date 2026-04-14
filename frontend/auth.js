@@ -1,7 +1,12 @@
 // ====================
 // API Configuration
 // ====================
-const API_URL = 'http://localhost:5000/api';
+const API_URL = (() => {
+    if (window.location.protocol === 'file:') return 'http://localhost:5000/api';
+    const isLocalFrontend = window.location.hostname === 'localhost' && window.location.port === '3000';
+    if (isLocalFrontend) return 'http://localhost:5000/api';
+    return `${window.location.origin}/api`;
+})();
 
 // ====================
 // State Management
@@ -41,6 +46,10 @@ class Auth {
 }
 
 const auth = new Auth();
+
+function getAppPageUrl() {
+    return window.location.protocol === 'file:' ? 'index.html' : '/';
+}
 
 // ====================
 // DOM Elements
@@ -181,7 +190,7 @@ async function loginUser(email, password) {
 
         // Redirect after a short delay
         setTimeout(() => {
-            window.location.href = '/';
+            window.location.href = getAppPageUrl();
         }, 1500);
 
     } catch (error) {
@@ -229,7 +238,7 @@ async function signupUser(username, email, password) {
 
         // Redirect after a short delay
         setTimeout(() => {
-            window.location.href = '/';
+            window.location.href = getAppPageUrl();
         }, 1500);
 
     } catch (error) {
@@ -322,7 +331,7 @@ passwordInput.addEventListener('input', (e) => {
 
 // If user is already logged in, redirect to main page
 if (auth.isAuthenticated) {
-    window.location.href = '/';
+    window.location.href = getAppPageUrl();
 }
 
 console.log('🔐 CloudChat Authentication System Loaded');

@@ -17,9 +17,6 @@ const groupRoutes   = require("./routes/groupRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const roomRoutes    = require("./routes/rooms");
 
-// Connect to MongoDB
-connectDB();
-
 const app = express();
 const httpServer = http.createServer(app);
 
@@ -37,7 +34,18 @@ const io = new Server(httpServer, {
 setIO(io);            
 socketHandler(io);    
 
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      connectSrc: ["'self'", "http://localhost:5000", "ws://localhost:5000", "https:", "wss:"],
+    },
+  },
+}));
 
 app.use(cors({
   origin: process.env.CLIENT_URL || "http://localhost:3000",

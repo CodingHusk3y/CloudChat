@@ -14,9 +14,9 @@ const { uploadMultiple } = require("../middleware/upload");
 
 router.use(protect, requireGroupMembership);
 
-router.get(  "/",        validatePagination, getMessages);
-router.post( "/",        uploadMultiple, validateCreateMessage, createMessage);
-router.get(  "/search",  searchMessages);
+router.get(  "/", validatePagination, getMessages);
+router.post( "/", uploadMultiple, validateCreateMessage, createMessage);
+router.get(  "/search", searchMessages);
 
 router.patch( "/:messageId", validateUpdateMessage, updateMessage);
 router.delete("/:messageId", deleteMessage);

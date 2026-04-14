@@ -2,8 +2,8 @@ const express = require("express");
 const router = express.Router();
 
 const {
-    createGroup, getMyGroups, getGroup, updateGroup, deleteGroup,
-    joinGroup, leaveGroup, removeMember, refreshInviteCode,
+    createGroup, getMyGroups, getActiveGroups, getGroup, updateGroup, deleteGroup,
+    joinGroup, joinGroupById, leaveGroup, removeMember, refreshInviteCode,
 } = require("../controllers/groupController");
 
 const { protect, requireGroupMembership, requireGroupAdmin } = require("../middleware/auth");
@@ -16,7 +16,9 @@ router.use(protect);
 
 router.post("/",    validateCreateGroup, createGroup); 
 router.get("/",     getMyGroups);                      
+router.get("/active", getActiveGroups);
 router.post("/join", validateJoinGroup, joinGroup);    
+router.post("/:groupId/join", validateMongoId("groupId"), joinGroupById);
 
 router
     .route("/:groupId")

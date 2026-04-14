@@ -28,29 +28,20 @@
           </p>
         </div>
 
-        <section class="panel user-panel">
-          <div class="panel-header">
-            <h2>Your identity</h2>
-            <span class="status-dot"></span>
-          </div>
-          <div id="userInfo" class="user-info">
-            <p><strong>Username:</strong> <span id="displayUsername">Loading...</span></p>
-            <p><strong>Email:</strong> <span id="displayEmail">Loading...</span></p>
-          </div>
-          <label class="field">
-            <span>Display name</span>
-            <input id="userNameInput" type="text" maxlength="32" placeholder="Enter your name" />
-          </label>
-          <p class="helper-text">Used as the sender name for new messages.</p>
-          <button id="logoutBtn" class="ghost-button" style="width: 100%; margin-top: 10px;">Logout</button>
-        </section>
+
 
         <section class="panel groups-panel">
           <div class="panel-header">
-            <h2>Groups</h2>
+            <h2>My Groups</h2>
             <span id="groupCount" class="count-badge">0</span>
           </div>
           <div id="groupList" class="group-list" aria-label="Chat groups"></div>
+
+          <div class="panel-header active-groups-header">
+            <h2>Active Groups</h2>
+            <span id="activeGroupCount" class="count-badge">0</span>
+          </div>
+          <div id="activeGroupList" class="group-list" aria-label="Active groups"></div>
 
           <form id="groupForm" class="stack-form">
             <label class="field">
@@ -68,13 +59,27 @@
 
       <section class="workspace">
         <header class="workspace-header panel">
-          <div>
-            <p class="eyebrow">Live room</p>
-            <h2 id="activeGroupTitle">No group selected</h2>
-            <p id="activeGroupMeta" class="meta-text">Create or select a group to begin.</p>
-          </div>
           <div class="header-actions">
-            <button id="deleteGroupButton" class="ghost-button" type="button" disabled>Delete group</button>
+            <div class="identity-tab" id="identityTab">
+              <button class="identity-toggle" id="identityToggle" type="button" title="Click to expand profile">
+                <span id="displayUsername" class="identity-username">Loading...</span>
+              </button>
+              <div class="identity-panel" id="identityPanel">
+                <div id="userInfo" class="user-info">
+                  <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <span class="status-dot"></span>
+                    <p style="margin: 0;"><strong><span id="displayUsername2">Loading...</span></strong></p>
+                  </div>
+                  <p style="margin: 0.4rem 0;"><strong>Email:</strong> <span id="displayEmail">Loading...</span></p>
+                </div>
+                <label class="field">
+                  <span>Display name</span>
+                  <input id="userNameInput" type="text" maxlength="32" placeholder="Enter your name" />
+                </label>
+                <p class="helper-text">Used as the sender name for new messages.</p>
+                <button id="logoutBtn" type="button" class="ghost-button" style="width: 100%; margin-top: 10px;">Logout</button>
+              </div>
+            </div>
           </div>
         </header>
 
@@ -104,11 +109,40 @@
         throw new Error('Authentication required');
       }
     </script>
-    <script src="/socket.io/socket.io.js" onerror="
-      var s=document.createElement('script');
-      s.src='http://localhost:3000/socket.io/socket.io.js';
-      document.head.appendChild(s);
-    "></script>
+    <script>
+      // Load Socket.IO client library with fallback
+      (function () {
+        let socketIOScript = null;
+        
+        function loadSocketIO(url) {
+          return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = url;
+            
+            script.onload = function () {
+              console.log('Socket.IO loaded from:', url);
+              resolve();
+            };
+            
+            script.onerror = function () {
+              reject(new Error(`Failed to load Socket.IO from ${url}`));
+            };
+            
+            document.head.appendChild(script);
+          });
+        }
+        
+        // Try primary URL first (same origin), then fallback to backend
+        loadSocketIO('/socket.io/socket.io.js')
+          .catch(() => {
+            console.warn('Socket.IO not available on same origin, trying backend...');
+            return loadSocketIO('http://localhost:5000/socket.io/socket.io.js');
+          })
+          .catch((error) => {
+            console.error('Failed to load Socket.IO from any source:', error.message);
+          });
+      })();
+    </script>
     <script src="app.js"></script>
   </body>
 </html>

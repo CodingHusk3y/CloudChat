@@ -69,3 +69,17 @@ exports.addMemberToRoom = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+exports.deleteRoom = async (req, res) => {
+  try {
+    const room = await ChatRoom.findByIdAndDelete(req.params.roomId);
+
+    if (!room) {
+      return res.status(404).json({ message: 'Room not found' });
+    }
+
+    res.status(200).json({ message: 'Room deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

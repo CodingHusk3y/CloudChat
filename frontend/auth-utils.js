@@ -3,7 +3,12 @@
  * Use this in your main app's JavaScript to manage authentication
  */
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = (() => {
+    if (window.location.protocol === 'file:') return 'http://localhost:5000/api';
+    const isLocalFrontend = window.location.hostname === 'localhost' && window.location.port === '3000';
+    if (isLocalFrontend) return 'http://localhost:5000/api';
+    return `${window.location.origin}/api`;
+})();
 
 // ====================
 // Auth Storage & State
@@ -20,7 +25,7 @@ const AuthManager = {
     },
 
     isAuthenticated() {
-        return !!this.getToken();
+        return !!(this.getToken() && this.getUser());
     },
 
     setAuthentication(token, user) {
@@ -31,7 +36,7 @@ const AuthManager = {
     logout() {
         localStorage.removeItem('authToken');
         localStorage.removeItem('user');
-        window.location.href = '/auth.html';
+        window.location.href = getAuthPageUrl();
     },
 
     getAuthHeaders() {
@@ -42,13 +47,17 @@ const AuthManager = {
     }
 };
 
+function getAuthPageUrl() {
+    return window.location.protocol === 'file:' ? 'auth.html' : '/auth.html';
+}
+
 // ====================
 // Protected Route Check
 // ====================
 
 function checkAuthentication() {
     if (!AuthManager.isAuthenticated()) {
-        window.location.href = '/auth.html';
+        window.location.href = getAuthPageUrl();
         return false;
     }
     return true;
@@ -113,10 +122,24 @@ const UserAPI = {
     },
 
     async logout() {
-        try {
-            await apiCall('/auth/logout', { method: 'POST' });
-        } finally {
-            AuthManager.logout();
+        const token = AuthManager.getToken();
+
+        // Always clear local session immediately so logout never feels blocked.
+        AuthManager.logout();
+
+        // Best-effort server logout (ignore failures because user is already logged out locally).
+        if (token) {
+            try {
+                await fetch(`${API_URL}/auth/logout`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+            } catch (_) {
+                // No-op on purpose.
+            }
         }
     }
 };
