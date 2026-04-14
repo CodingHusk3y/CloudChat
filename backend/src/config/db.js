@@ -1,13 +1,23 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-async function connectDatabase() {
-  const mongoUri = process.env.MONGODB_URI;
+const connectDB = async () => {
+  try {
+    const conn = await mongoose.connect(process.env.MONGO_URI, {
+    });
 
-  if (!mongoUri) {
-    throw new Error('MONGODB_URI is required');
+    console.log(`✅ MongoDB connected: ${conn.connection.host}`);
+
+    mongoose.connection.on("disconnected", () => {
+      console.warn("⚠️  MongoDB disconnected – retrying automatically…");
+    });
+
+    mongoose.connection.on("error", (err) => {
+      console.error("❌ MongoDB error:", err.message);
+    });
+  } catch (error) {
+    console.error(`❌ MongoDB connection failed: ${error.message}`);
+    process.exit(1);
   }
+};
 
-  await mongoose.connect(mongoUri);
-}
-
-module.exports = connectDatabase;
+module.exports = connectDB;

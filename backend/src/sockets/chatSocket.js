@@ -1,96 +1,89 @@
-/* function registerChatSocket(io) {
-  io.on('connection', (socket) => {
-    socket.on('join-room', (roomId) => {
-      socket.join(roomId);
-    });
+const jwt = require("jsonwebtoken");
+const User = require("../models/User");
 
-    socket.on('send-message', (payload) => {
-      io.to(payload.roomId).emit('new-message', payload);
-    });
+const socketHandler = (io) => {
+  io.use(async (socket, next) => {
+    try {
+      const token = socket.handshake.auth.token || socket.handshake.query.token;
+
+      if (!token) {
+        return next(new Error("Authentication token missing"));
+      }
+
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const user = await User.findById(decoded.id).select("username avatar");
+
+      if (!user) return next(new Error("User not found"));
+
+      socket.user = user; 
+      next();
+    } catch {
+      next(new Error("Invalid authentication token"));
+    }
   });
-}
 
-module.exports = registerChatSocket;
-*/
-const Message = require('../models/Message');
-const ChatRoom = require('../models/ChatRoom');
+  io.on("connection", (socket) => {
+    console.log(`🔌 Socket connected: ${socket.user.username} (${socket.id})`);
 
-const chatSocket = (io) => {
-  io.on('connection', (socket) => {
-    console.log(`User connected: ${socket.id}`);
+    User.findByIdAndUpdate(socket.user._id, { isOnline: true }).exec();
 
-    socket.on('joinRoom', async ({ roomId, username }) => {
-      try {
-        socket.join(roomId);
-        console.log(`${username} joined room ${roomId}`);
-
-        socket.to(roomId).emit('userJoined', {
-          message: `${username} joined the room`,
-          username,
-          roomId,
-        });
-      } catch (error) {
-        socket.emit('errorMessage', { message: error.message });
-      }
+    socket.on("join:group", (groupId) => {
+      socket.join(groupId);
+      socket.to(groupId).emit("user:joined", {
+        userId: socket.user._id,
+        username: socket.user.username,
+        avatar: socket.user.avatar,
+      });
+      console.log(`👥 ${socket.user.username} joined room ${groupId}`);
     });
 
-    socket.on('leaveRoom', ({ roomId, username }) => {
-      socket.leave(roomId);
-      socket.to(roomId).emit('userLeft', {
-        message: `${username} left the room`,
-        username,
-        roomId,
+    socket.on("leave:group", (groupId) => {
+      socket.leave(groupId);
+      socket.to(groupId).emit("user:left", {
+        userId: socket.user._id,
+        username: socket.user.username,
       });
     });
 
-    socket.on('sendMessage', async ({ roomId, sender, content }) => {
-      try {
-        if (!roomId || !sender || !content) {
-          return socket.emit('errorMessage', {
-            message: 'roomId, sender, and content are required',
-          });
-        }
-
-        const room = await ChatRoom.findById(roomId);
-        if (!room) {
-          return socket.emit('errorMessage', {
-            message: 'Room not found',
-          });
-        }
-
-        const message = await Message.create({
-          roomId: room._id,
-          sender,
-          content,
-        });
-
-        room.lastMessage = message._id;
-        await room.save();
-
-        const fullMessage = await Message.findById(message._id);
-
-        io.to(roomId).emit('newMessage', fullMessage);
-      } catch (error) {
-        socket.emit('errorMessage', { message: error.message });
-      }
-    });
-
-    socket.on('typing', ({ roomId, username }) => {
-      socket.to(roomId).emit('typing', {
-        username,
+    socket.on("typing:start", (groupId) => {
+      socket.to(groupId).emit("typing:start", {
+        userId: socket.user._id,
+        username: socket.user.username,
       });
     });
 
-    socket.on('stopTyping', ({ roomId, username }) => {
-      socket.to(roomId).emit('stopTyping', {
-        username,
+    socket.on("typing:stop", (groupId) => {
+      socket.to(groupId).emit("typing:stop", {
+        userId: socket.user._id,
+        username: socket.user.username,
       });
     });
 
-    socket.on('disconnect', () => {
-      console.log(`User disconnected: ${socket.id}`);
+    socket.on("disconnect", () => {
+      console.log(`🔌 Socket disconnected: ${socket.user.username}`);
+
+      User.findByIdAndUpdate(socket.user._id, {
+        isOnline: false,
+        lastSeen: new Date(),
+      }).exec();
+
+      io.emit("user:offline", {
+        userId: socket.user._id,
+        lastSeen: new Date(),
+      });
     });
   });
 };
 
-module.exports = chatSocket;
+
+let _io; 
+
+const setIO = (io) => { _io = io; };
+
+const emitToGroup = (groupId, event, data) => {
+  if (_io) {
+    _io.to(groupId.toString()).emit(event, data);
+  }
+};
+
+module.exports = { socketHandler, setIO, emitToGroup };
