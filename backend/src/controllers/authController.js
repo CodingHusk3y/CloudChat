@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 const User = require("../models/User");
 const { asyncHandler } = require("../middleware/errorHandler");
 
@@ -26,6 +27,13 @@ const sendTokenResponse = (user, statusCode, res) => {
 };
 
 const register = asyncHandler(async (req, res) => {
+    if (mongoose.connection.readyState !== 1) {
+        return res.status(503).json({
+            success: false,
+            message: "Database is not connected yet. Please try again in a few seconds.",
+        });
+    }
+
     const { username, email, password } = req.body;
 
     const exists = await User.findOne({ $or: [{ email }, { username }] });
@@ -44,6 +52,13 @@ const register = asyncHandler(async (req, res) => {
 });
 
 const login = asyncHandler(async (req, res) => {
+    if (mongoose.connection.readyState !== 1) {
+        return res.status(503).json({
+            success: false,
+            message: "Database is not connected yet. Please try again in a few seconds.",
+        });
+    }
+
     const { email, password } = req.body;
 
     const user = await User.findOne({ email }).select("+password");

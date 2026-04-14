@@ -20,6 +20,15 @@ const errorHandler = (err, req, res, next) => {
         .join(". ");
     }
 
+    if (
+        err.name === "MongoServerSelectionError" ||
+        err.name === "MongooseServerSelectionError" ||
+        /buffering timed out|server selection/i.test(err.message || "")
+    ) {
+        statusCode = 503;
+        message = "Database is temporarily unavailable. Please try again shortly.";
+    }
+
     if (err.name === "JsonWebTokenError") {
         statusCode = 401;
         message = "Invalid token.";
