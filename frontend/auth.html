@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CloudChat - Sign In / Sign Up</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
+        rel="stylesheet"
+    />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .auth-container {
+            width: 100%;
+            max-width: 450px;
+            padding: 20px;
+        }
+
+        .auth-card {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .brand {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .brand h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            color: #667eea;
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .brand p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .auth-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            background: #f0f0f0;
+            padding: 4px;
+            border-radius: 8px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            background: transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .tab-btn.active {
+            background: white;
+            color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+            font-size: 14px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-section {
+            display: none;
+        }
+
+        .form-section.active {
+            display: block;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .error.show {
+            display: block;
+            animation: shake 0.3s ease;
+        }
+
+        @keyframes shake {
+            0%, 100% {
+                transform: translateX(0);
+            }
+            25% {
+                transform: translateX(-5px);
+            }
+            75% {
+                transform: translateX(5px);
+            }
+        }
+
+        .success {
+            background: #efe;
+            color: #3c3;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .success.show {
+            display: block;
+        }
+
+        .loading {
+            position: relative;
+        }
+
+        .loading::after {
+            content: '';
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            width: 16px;
+            height: 16px;
+            margin-top: -8px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .password-strength {
+            margin-top: 8px;
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .password-strength-bar {
+            height: 100%;
+            width: 0;
+            transition: all 0.3s ease;
+        }
+
+        .password-strength-bar.weak {
+            width: 33%;
+            background: #f56565;
+        }
+
+        .password-strength-bar.medium {
+            width: 66%;
+            background: #ecc94b;
+        }
+
+        .password-strength-bar.strong {
+            width: 100%;
+            background: #48bb78;
+        }
+
+        .helper-text {
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
+        }
+
+        .divider {
+            text-align: center;
+            margin: 24px 0;
+            font-size: 12px;
+            color: #999;
+        }
+
+        @media (max-width: 480px) {
+            .auth-card {
+                padding: 24px;
+            }
+
+            .brand h1 {
+                font-size: 24px;
+            }
+
+            .tab-btn {
+                font-size: 13px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="brand">
+                <h1>CloudChat</h1>
+                <p>Real-time team communication</p>
+            </div>
+
+            <div class="auth-tabs">
+                <button class="tab-btn active" data-tab="login">Sign In</button>
+                <button class="tab-btn" data-tab="signup">Sign Up</button>
+            </div>
+
+            <!-- Login Form -->
+            <div id="login" class="form-section active">
+                <div class="error" id="loginError"></div>
+                <div class="success" id="loginSuccess"></div>
+
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="loginEmail">Email</label>
+                        <input
+                            type="email"
+                            id="loginEmail"
+                            name="email"
+                            placeholder="your@email.com"
+                            required
+                        />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="loginPassword">Password</label>
+                        <input
+                            type="password"
+                            id="loginPassword"
+                            name="password"
+                            placeholder="Enter your password"
+                            required
+                        />
+                    </div>
+
+                    <button type="submit" class="submit-btn" id="loginBtn">
+                        Sign In
+                    </button>
+                </form>
+            </div>
+
+            <!-- Signup Form -->
+            <div id="signup" class="form-section">
+                <div class="error" id="signupError"></div>
+                <div class="success" id="signupSuccess"></div>
+
+                <form id="signupForm">
+                    <div class="form-group">
+                        <label for="signupUsername">Username</label>
+                        <input
+                            type="text"
+                            id="signupUsername"
+                            name="username"
+                            placeholder="Choose a username"
+                            minlength="3"
+                            maxlength="30"
+                            required
+                        />
+                        <p class="helper-text">3-30 characters, letters/numbers/dash/underscore only</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="signupEmail">Email</label>
+                        <input
+                            type="email"
+                            id="signupEmail"
+                            name="email"
+                            placeholder="your@email.com"
+                            required
+                        />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="signupPassword">Password</label>
+                        <input
+                            type="password"
+                            id="signupPassword"
+                            name="password"
+                            placeholder="At least 8 characters"
+                            minlength="8"
+                            required
+                        />
+                        <div class="password-strength">
+                            <div class="password-strength-bar" id="strengthBar"></div>
+                        </div>
+                        <p class="helper-text">Min 8 chars, 1 uppercase, 1 number</p>
+                    </div>
+
+                    <button type="submit" class="submit-btn" id="signupBtn">
+                        Create Account
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="auth.js"></script>
+</body>
+</html>

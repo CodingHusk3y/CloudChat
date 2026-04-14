@@ -1,22 +1,31 @@
+version: '3.8'
+
 services:
-  api:
+  backend:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: cloudchat-backend
     ports:
-      - "3000:3000"
+      - "5000:5000"
+      - "3000:3000"  # Frontend served from backend
     environment:
-      PORT: 3000
-      MONGODB_URI: mongodb://mongo:27017/cloudchat
-    depends_on:
-      - mongo
+      PORT: 5000
+      NODE_ENV: production
+      MONGO_URI: ${MONGO_URI:-mongodb+srv://user:pass@cluster.mongodb.net/cloudchat}
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
+      JWT_EXPIRES_IN: 7d
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:3000}
+    env_file:
+      - .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
-  mongo:
-    image: mongo:7
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-
-volumes:
-  mongo_data:
+networks:
+  default:
+    name: cloudchat-network

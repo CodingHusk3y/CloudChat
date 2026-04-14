@@ -33,11 +33,16 @@
             <h2>Your identity</h2>
             <span class="status-dot"></span>
           </div>
+          <div id="userInfo" class="user-info">
+            <p><strong>Username:</strong> <span id="displayUsername">Loading...</span></p>
+            <p><strong>Email:</strong> <span id="displayEmail">Loading...</span></p>
+          </div>
           <label class="field">
             <span>Display name</span>
             <input id="userNameInput" type="text" maxlength="32" placeholder="Enter your name" />
           </label>
           <p class="helper-text">Used as the sender name for new messages.</p>
+          <button id="logoutBtn" class="ghost-button" style="width: 100%; margin-top: 10px;">Logout</button>
         </section>
 
         <section class="panel groups-panel">
@@ -92,6 +97,13 @@
       </section>
     </main>
 
+    <script src="auth-utils.js"></script>
+    <script>
+      // Protect this route - redirect to login if not authenticated
+      if (!checkAuthentication()) {
+        throw new Error('Authentication required');
+      }
+    </script>
     <script src="/socket.io/socket.io.js" onerror="
       var s=document.createElement('script');
       s.src='http://localhost:3000/socket.io/socket.io.js';

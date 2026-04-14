@@ -1,4 +1,4 @@
-require("dotenv").config(); 
+require("dotenv").config({ path: require("path").resolve(__dirname, "../../.env") }); 
 const express = require("express");
 const http = require("http");        
 const { Server } = require("socket.io");
@@ -16,6 +16,9 @@ const authRoutes    = require("./routes/authRoutes");
 const groupRoutes   = require("./routes/groupRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const roomRoutes    = require("./routes/rooms");
+
+// Connect to MongoDB
+connectDB();
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -70,6 +73,9 @@ app.use(
   (req, res, next) => { res.setHeader("X-Content-Type-Options", "nosniff"); next(); },
   express.static(path.join(__dirname, "..", process.env.UPLOAD_PATH || "uploads"))
 );
+
+// Serve frontend static files
+app.use(express.static(path.join(__dirname, "../../frontend")));
 
 app.use("/api/auth",   authRoutes);
 app.use("/api/groups", groupRoutes);

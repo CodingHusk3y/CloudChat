@@ -18,8 +18,30 @@ const elements = {
   messageInput: document.getElementById('messageInput'),
   messageList: document.getElementById('messageList'),
   messagesEmptyState: document.getElementById('messagesEmptyState'),
-  typingIndicator: document.getElementById('typingIndicator')
+  typingIndicator: document.getElementById('typingIndicator'),
+  displayUsername: document.getElementById('displayUsername'),
+  displayEmail: document.getElementById('displayEmail'),
+  logoutBtn: document.getElementById('logoutBtn')
 };
+
+// Display user info
+function displayUserInfo() {
+  const user = AuthManager.getUser();
+  if (user) {
+    elements.displayUsername.textContent = user.username;
+    elements.displayEmail.textContent = user.email;
+  }
+}
+
+// Logout handler
+elements.logoutBtn?.addEventListener('click', async () => {
+  try {
+    await UserAPI.logout();
+  } catch (error) {
+    console.error('Logout error:', error);
+    AuthManager.logout();
+  }
+});
 
 const state = loadState();
 
@@ -71,10 +93,28 @@ function getInitials(name) {
 // --- API helpers ---
 
 async function api(path, options) {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options?.headers
+  };
+
+  // Add auth token if available
+  const token = AuthManager.getToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const res = await fetch(API_BASE + path, {
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     ...options
   });
+  
+  // Handle 401 Unauthorized
+  if (res.status === 401) {
+    AuthManager.logout();
+    throw new Error('Session expired. Please log in again.');
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.message || res.statusText);
@@ -396,5 +436,6 @@ elements.messageInput.addEventListener('input', emitTyping);
 
 // --- Init ---
 
+displayUserInfo();
 elements.userNameInput.value = state.userName;
 fetchRooms();
