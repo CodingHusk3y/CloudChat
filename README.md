@@ -8,8 +8,6 @@ CloudChat is a deployed real-time group chat application with room-based convers
 
 Note: Render free-tier services may cold start after inactivity, so the first request can take a short time before the app fully loads.
 
-Replace the URL above with your actual deployed website link.
-
 ## Deployment Overview
 
 This project is deployed as a containerized Node.js application with horizontal scaling and load balancing.
