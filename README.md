@@ -6,6 +6,8 @@ CloudChat is a deployed real-time group chat application with room-based convers
 
 - Production URL: https://cloudchat-r8d7.onrender.com
 
+Note: Render free-tier services may cold start after inactivity, so the first request can take a short time before the app fully loads.
+
 Replace the URL above with your actual deployed website link.
 
 ## Deployment Overview
